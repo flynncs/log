@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-#[derive(Clone)]
 pub struct AppState {
     pub greeting: String,
+    pub ingest_count: Mutex<u64>,
 }
 
 pub type SharedState = Arc<AppState>;

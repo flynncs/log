@@ -1,5 +1,5 @@
 use axum::Router;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 mod routes;
 
@@ -10,6 +10,7 @@ use state::{AppState, SharedState};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state: SharedState = Arc::new(AppState {
         greeting: "hello from app state".to_string(),
+        ingest_count: Mutex::new(0),
     });
 
     let app = Router::new()
