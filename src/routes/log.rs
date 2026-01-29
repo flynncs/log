@@ -1,6 +1,8 @@
 use axum::{Json, Router, http::StatusCode, routing::post};
 use serde::{Deserialize, Serialize};
 
+use crate::state::SharedState;
+
 #[derive(Deserialize)]
 pub struct LogIngest {
     message: String,
@@ -21,6 +23,6 @@ pub async fn ingest(Json(payload): Json<LogIngest>) -> (StatusCode, Json<IngestR
     )
 }
 
-pub fn router() -> Router {
+pub fn router() -> Router<SharedState> {
     Router::new().route("/log", post(ingest))
 }
