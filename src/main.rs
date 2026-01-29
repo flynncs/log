@@ -1,4 +1,4 @@
-use axum::{Router, routing::get, routing::post};
+use axum::Router;
 
 mod routes;
 
@@ -7,8 +7,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hello, world!");
 
     let app = Router::new()
-        .route("/health", get(routes::health::health))
-        .route("/log", post(routes::log::ingest));
+        .merge(routes::health::router())
+        .merge(routes::log::router());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 

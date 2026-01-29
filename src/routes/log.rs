@@ -1,4 +1,4 @@
-use axum::{Json, http::StatusCode};
+use axum::{Json, Router, http::StatusCode, routing::post};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -19,4 +19,8 @@ pub async fn ingest(Json(payload): Json<LogIngest>) -> (StatusCode, Json<IngestR
             status: format!("got: {} ({})", payload.message, payload.level),
         }),
     )
+}
+
+pub fn router() -> Router {
+    Router::new().route("/log", post(ingest))
 }
