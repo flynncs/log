@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::{Router, routing::get, routing::post};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 struct LogIngest {
@@ -8,8 +8,15 @@ struct LogIngest {
     level: String,
 }
 
-async fn ingest(Json(payload): Json<LogIngest>) -> String {
-    format!("got: {} ({})", payload.message, payload.level)
+#[derive(Serialize)]
+struct IngestResponse {
+    status: String,
+}
+
+async fn ingest(Json(payload): Json<LogIngest>) -> Json<IngestResponse> {
+    Json(IngestResponse {
+        status: format!("got: {} ({})", payload.message, payload.level),
+    })
 }
 
 async fn health() -> &'static str {
