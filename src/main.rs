@@ -1,5 +1,5 @@
 use axum::Json;
-use axum::{Router, routing::get, routing::post};
+use axum::{Router, http::StatusCode, routing::get, routing::post};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -13,10 +13,13 @@ struct IngestResponse {
     status: String,
 }
 
-async fn ingest(Json(payload): Json<LogIngest>) -> Json<IngestResponse> {
-    Json(IngestResponse {
-        status: format!("got: {} ({})", payload.message, payload.level),
-    })
+async fn ingest(Json(payload): Json<LogIngest>) -> (StatusCode, Json<IngestResponse>) {
+    (
+        StatusCode::CREATED,
+        Json(IngestResponse {
+            status: format!("got: {} ({})", payload.message, payload.level),
+        }),
+    )
 }
 
 async fn health() -> &'static str {
