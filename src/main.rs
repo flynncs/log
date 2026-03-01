@@ -6,11 +6,12 @@ mod routes;
 mod state;
 use state::{AppState, SharedState};
 
+mod model;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state: SharedState = Arc::new(AppState {
-        greeting: "hello from app state".to_string(),
-        ingest_count: Mutex::new(0),
+        ingested_logs: Mutex::new(vec![]),
     });
 
     let app = Router::new()

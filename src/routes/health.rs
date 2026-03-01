@@ -1,9 +1,9 @@
-use axum::{Router, extract::State, routing::get};
+use axum::{Router, routing::get};
 
 use crate::state::SharedState;
 
-pub async fn health(State(state): State<SharedState>) -> String {
-    state.greeting.clone()
+pub async fn health() -> String {
+    "OK".to_string()
 }
 
 pub fn router() -> Router<SharedState> {
