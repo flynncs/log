@@ -1,6 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
 pub enum LogLevel {
     Info,
     Warn,
@@ -10,10 +13,23 @@ pub enum LogLevel {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LogEntry {
-    pub id: String,
-    pub timestamp: String,
+    pub id: Uuid,
+    pub timestamp: DateTime<Utc>,
     pub level: LogLevel,
     pub message: String,
     pub service: String,
     pub attributes: serde_json::Value,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+
+pub struct NewLogEntry {
+    pub level: LogLevel,
+    pub service: String,
+    pub message: String,
+    pub attributes: serde_json::Value,
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
 }

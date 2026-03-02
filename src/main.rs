@@ -1,18 +1,26 @@
 use axum::Router;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 mod routes;
 
 mod state;
-use state::{AppState, SharedState};
+use state::AppState;
 
+use crate::state::SharedState;
+
+mod db;
+mod dto;
 mod model;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let state: SharedState = Arc::new(AppState {
-        ingested_logs: Mutex::new(vec![]),
-    });
+    dotenvy::dotenv().ok();
+
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL should be set in .env");
+
+    let pg_pool = sqlx::PgPool::connect(&db_url).await?;
+
+    let state: SharedState = Arc::new(AppState { db: pg_pool });
 
     let app = Router::new()
         .merge(routes::health::router())
