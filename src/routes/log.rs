@@ -1,4 +1,9 @@
-use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
+use axum::{
+    Json, Router,
+    extract::{Query, State},
+    http::StatusCode,
+    routing::{get, post},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -45,6 +50,46 @@ pub async fn ingest(
     )
 }
 
+#[derive(Serialize)]
+pub struct LogResponse {
+    logs: Vec<LogEntry>,
+}
+
+#[derive(Deserialize)]
+pub struct LogQuery {
+    level: Option<LogLevel>,
+    service: Option<String>,
+}
+
+pub async fn get_logs(
+    State(state): State<SharedState>,
+    Query(params): Query<LogQuery>,
+) -> (StatusCode, Json<LogResponse>) {
+    let ingested_logs = state.ingested_logs.lock().unwrap();
+
+    let log_response = ingested_logs
+        .iter()
+        .filter(|entry| {
+            let level_match = match &params.level {
+                Some(level) => &entry.level == level,
+                None => true,
+            };
+
+            let service_match = match &params.service {
+                Some(service) => &entry.service == service,
+                None => true,
+            };
+
+            level_match && service_match
+        })
+        .cloned()
+        .collect();
+
+    (StatusCode::OK, Json(LogResponse { logs: log_response }))
+}
+
 pub fn router() -> Router<SharedState> {
-    Router::new().route("/log", post(ingest))
+    Router::new()
+        .route("/log", post(ingest))
+        .route("/logs", get(get_logs))
 }
