@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Info,
     Warn,
@@ -19,7 +20,9 @@ pub struct LogEntry {
     pub message: String,
     pub service: String,
     pub attributes: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub span_id: Option<String>,
 }
 
