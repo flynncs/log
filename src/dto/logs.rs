@@ -1,4 +1,5 @@
 use crate::model::{LogEntry, LogLevel};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -25,4 +26,8 @@ pub struct LogResponse {
 pub struct LogQuery {
     pub level: Option<LogLevel>,
     pub service: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
 }

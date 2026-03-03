@@ -37,9 +37,17 @@ pub async fn get_logs(
     State(state): State<SharedState>,
     Query(params): Query<LogQuery>,
 ) -> (StatusCode, Json<LogResponse>) {
-    let log_response = find_all(&state.db, params.service, params.level)
-        .await
-        .unwrap();
+    let log_response = find_all(
+        &state.db,
+        params.service,
+        params.level,
+        params.limit,
+        params.offset,
+        params.from,
+        params.to,
+    )
+    .await
+    .unwrap();
 
     (StatusCode::OK, Json(LogResponse { logs: log_response }))
 }
