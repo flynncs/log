@@ -8,6 +8,7 @@ use axum::{
 use crate::{
     db::logs::{find_all, insert},
     dto::logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse},
+    errors::AppError,
     model::NewLogEntry,
     state::SharedState,
 };
@@ -15,7 +16,19 @@ use crate::{
 pub async fn ingest(
     State(state): State<SharedState>,
     Json(payload): Json<LogIngest>,
-) -> (StatusCode, Json<LogIngestResponse>) {
+) -> Result<(StatusCode, Json<LogIngestResponse>), AppError> {
+    if payload.message.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "message cannot be empty".to_string(),
+        ));
+    }
+
+    if payload.service.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "service cannot be empty".to_string(),
+        ));
+    }
+
     let log_entry = NewLogEntry {
         level: payload.level,
         message: payload.message,
@@ -25,18 +38,19 @@ pub async fn ingest(
         span_id: payload.span_id,
     };
 
-    let created_log = insert(&state.db, log_entry).await.unwrap();
+    let created_log = insert(&state.db, log_entry).await?;
 
-    (
+    Ok((
         StatusCode::CREATED,
         Json(LogIngestResponse { log: created_log }),
-    )
+    ))
 }
 
 pub async fn get_logs(
     State(state): State<SharedState>,
     Query(params): Query<LogQuery>,
-) -> (StatusCode, Json<LogResponse>) {
+) -> Result<(StatusCode, Json<LogResponse>), AppError> {
+    // validate input
     let log_response = find_all(
         &state.db,
         params.service,
@@ -46,10 +60,9 @@ pub async fn get_logs(
         params.from,
         params.to,
     )
-    .await
-    .unwrap();
+    .await?;
 
-    (StatusCode::OK, Json(LogResponse { logs: log_response }))
+    Ok((StatusCode::OK, Json(LogResponse { logs: log_response })))
 }
 
 pub fn router() -> Router<SharedState> {

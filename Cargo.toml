@@ -12,3 +12,4 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4.44", features = ["serde"]}
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "uuid", "json", "macros"] }
 dotenvy = "0.15"
+thiserror = "1"

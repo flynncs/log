@@ -10,6 +10,7 @@ use crate::state::SharedState;
 
 mod db;
 mod dto;
+mod errors;
 mod model;
 
 #[tokio::main]
