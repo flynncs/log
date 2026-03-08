@@ -31,3 +31,9 @@ pub struct LogQuery {
     pub from: Option<DateTime<Utc>>,
     pub to: Option<DateTime<Utc>>,
 }
+
+#[derive(Deserialize)]
+pub struct LogStreamQuery {
+    pub level: Option<LogLevel>,
+    pub service: Option<String>,
+}

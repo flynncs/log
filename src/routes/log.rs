@@ -10,9 +10,9 @@ use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
     db::logs::{find_all, insert},
-    dto::logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse},
+    dto::logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery},
     errors::AppError,
-    model::NewLogEntry,
+    model::{LogEntry, LogLevel, NewLogEntry},
     state::SharedState,
 };
 
@@ -70,16 +70,40 @@ pub async fn get_logs(
     Ok((StatusCode::OK, Json(LogResponse { logs: log_response })))
 }
 
+fn matches_filters(entry: &LogEntry, level: &Option<LogLevel>, service: &Option<String>) -> bool {
+    let matches_level = match level {
+        Some(l) => l == &entry.level,
+        None => true,
+    };
+
+    let matches_service = match service {
+        Some(s) => s == &entry.service,
+        None => true,
+    };
+
+    matches_level && matches_service
+}
+
 pub async fn stream_logs(
     State(state): State<SharedState>,
+    Query(params): Query<LogStreamQuery>,
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
     let receiver = state.channel.subscribe();
     let stream = BroadcastStream::new(receiver);
 
-    let stream = stream.filter_map(|item| async move {
-        match item {
-            Ok(log_entry) => Some(Ok(Event::default().json_data(log_entry).unwrap())),
-            Err(_) => None,
+    let level_clone = params.level.clone();
+    let service_clone = params.service.clone();
+
+    let stream = stream.filter_map(move |item| {
+        let level_clone = level_clone.clone();
+        let service_clone = service_clone.clone();
+        async move {
+            match item {
+                Ok(log_entry) if matches_filters(&log_entry, &level_clone, &service_clone) => {
+                    Some(Ok(Event::default().json_data(log_entry).unwrap()))
+                }
+                _ => None,
+            }
         }
     });
 
