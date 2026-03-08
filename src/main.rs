@@ -1,12 +1,13 @@
 use axum::Router;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 mod routes;
 
 mod state;
 use state::AppState;
 
-use crate::state::SharedState;
+use crate::{model::LogEntry, state::SharedState};
 
 mod db;
 mod dto;
@@ -20,8 +21,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL should be set in .env");
 
     let pg_pool = sqlx::PgPool::connect(&db_url).await?;
+    let channel = broadcast::Sender::<LogEntry>::new(1000);
 
-    let state: SharedState = Arc::new(AppState { db: pg_pool });
+    let state: SharedState = Arc::new(AppState {
+        db: pg_pool,
+        channel: channel,
+    });
 
     let app = Router::new()
         .merge(routes::health::router())

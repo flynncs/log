@@ -2,8 +2,11 @@ use axum::{
     Json, Router,
     extract::{Query, State},
     http::StatusCode,
+    response::{Sse, sse::Event},
     routing::{get, post},
 };
+use futures::{Stream, StreamExt};
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
     db::logs::{find_all, insert},
@@ -40,6 +43,8 @@ pub async fn ingest(
 
     let created_log = insert(&state.db, log_entry).await?;
 
+    let _ = state.channel.send(created_log.clone());
+
     Ok((
         StatusCode::CREATED,
         Json(LogIngestResponse { log: created_log }),
@@ -65,8 +70,25 @@ pub async fn get_logs(
     Ok((StatusCode::OK, Json(LogResponse { logs: log_response })))
 }
 
+pub async fn stream_logs(
+    State(state): State<SharedState>,
+) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
+    let receiver = state.channel.subscribe();
+    let stream = BroadcastStream::new(receiver);
+
+    let stream = stream.filter_map(|item| async move {
+        match item {
+            Ok(log_entry) => Some(Ok(Event::default().json_data(log_entry).unwrap())),
+            Err(_) => None,
+        }
+    });
+
+    Sse::new(stream)
+}
+
 pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/log", post(ingest))
         .route("/logs", get(get_logs))
+        .route("/logs/stream", get(stream_logs))
 }
