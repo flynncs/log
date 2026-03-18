@@ -1,7 +1,8 @@
 use crate::model::{LogEntry, LogLevel, NewLogEntry};
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, query_as};
+use sqlx::{PgPool, QueryBuilder, query_as};
 
+// Single insert - keeping as a reference for `query_as`
 pub async fn insert(db: &PgPool, entry: NewLogEntry) -> Result<LogEntry, sqlx::Error> {
     query_as!(
         LogEntry,
@@ -19,6 +20,36 @@ pub async fn insert(db: &PgPool, entry: NewLogEntry) -> Result<LogEntry, sqlx::E
     .await
 }
 
+pub async fn insert_many(
+    db: &PgPool,
+    entries: Vec<NewLogEntry>,
+) -> Result<Vec<LogEntry>, sqlx::Error> {
+    if entries.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut query_builder = QueryBuilder::new(
+        "INSERT INTO log_entries (level, service, message, attributes, trace_id, span_id) ",
+    );
+    query_builder.push_values(entries, |mut builder, entry| {
+        builder
+            .push_bind(entry.level as LogLevel)
+            .push_bind(entry.service)
+            .push_bind(entry.message)
+            .push_bind(sqlx::types::Json(entry.attributes))
+            .push_bind(entry.trace_id)
+            .push_bind(entry.span_id);
+    });
+
+    query_builder
+        .push("RETURNING id, timestamp, level, service, message, attributes, trace_id, span_id");
+
+    query_builder
+        .build_query_as::<LogEntry>()
+        .fetch_all(db)
+        .await
+}
+
 pub async fn find_all(
     db: &PgPool,
     service: Option<String>,
@@ -32,7 +63,7 @@ pub async fn find_all(
         LogEntry,
         "SELECT id, timestamp, level as \"level: LogLevel\", service, message, attributes, trace_id, span_id FROM log_entries 
         WHERE ($1::text IS NULL OR service = $1)
-        AND ($2::text IS NULL OR level = $2::text)
+        AND ($2::text IS NULL OR level = $2::log_level)
         AND ($3::timestamptz IS NULL OR timestamp >= $3)
         AND ($4::timestamptz IS NULL OR timestamp <= $4)
         ORDER BY timestamp DESC

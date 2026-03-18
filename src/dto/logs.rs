@@ -14,7 +14,7 @@ pub struct LogIngest {
 
 #[derive(Serialize)]
 pub struct LogIngestResponse {
-    pub log: LogEntry,
+    pub logs: Vec<LogEntry>,
 }
 
 #[derive(Serialize)]

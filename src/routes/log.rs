@@ -5,50 +5,87 @@ use axum::{
     response::{Sse, sse::Event},
     routing::{get, post},
 };
+use chrono::Utc;
 use futures::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
-    db::logs::{find_all, insert},
-    dto::logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery},
+    db::logs::{find_all, insert_many},
+    dto::{
+        logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery},
+        otel::OtelLogsRequest,
+    },
     errors::AppError,
     model::{LogEntry, LogLevel, NewLogEntry},
+    otel::otel_to_log_entries,
     state::SharedState,
 };
 
-pub async fn ingest(
-    State(state): State<SharedState>,
-    Json(payload): Json<LogIngest>,
-) -> Result<(StatusCode, Json<LogIngestResponse>), AppError> {
-    if payload.message.trim().is_empty() {
+fn validate_log_ingest(log_ingest: &LogIngest) -> Result<(), AppError> {
+    if log_ingest.message.trim().is_empty() {
         return Err(AppError::ValidationError(
             "message cannot be empty".to_string(),
         ));
     }
 
-    if payload.service.trim().is_empty() {
+    if log_ingest.service.trim().is_empty() {
         return Err(AppError::ValidationError(
             "service cannot be empty".to_string(),
         ));
     }
 
-    let log_entry = NewLogEntry {
-        level: payload.level,
-        message: payload.message,
-        service: payload.service,
-        attributes: payload.attributes,
-        trace_id: payload.trace_id,
-        span_id: payload.span_id,
-    };
+    Ok(())
+}
 
-    let created_log = insert(&state.db, log_entry).await?;
+pub async fn ingest_logs(
+    State(state): State<SharedState>,
+    Json(payload): Json<Vec<LogIngest>>,
+) -> Result<(StatusCode, Json<LogIngestResponse>), AppError> {
+    let log_entries = payload
+        .into_iter()
+        .map(|entry| {
+            validate_log_ingest(&entry)?;
+            Ok(NewLogEntry {
+                level: entry.level,
+                message: entry.message,
+                service: entry.service,
+                attributes: entry.attributes,
+                trace_id: entry.trace_id,
+                span_id: entry.span_id,
+                timestamp: Utc::now(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
 
-    let _ = state.channel.send(created_log.clone());
+    let created_logs = insert_many(&state.db, log_entries).await?;
+
+    if state.channel.receiver_count() > 0 {
+        created_logs.iter().for_each(|entry| {
+            let _ = state.channel.send(entry.clone());
+        });
+    }
 
     Ok((
         StatusCode::CREATED,
-        Json(LogIngestResponse { log: created_log }),
+        Json(LogIngestResponse { logs: created_logs }),
     ))
+}
+
+pub async fn ingest_otel_logs(
+    State(state): State<SharedState>,
+    Json(payload): Json<OtelLogsRequest>,
+) -> Result<StatusCode, AppError> {
+    let log_entires = otel_to_log_entries(payload);
+
+    let created_logs = insert_many(&state.db, log_entires).await?;
+
+    if state.channel.receiver_count() > 0 {
+        created_logs.iter().for_each(|entry| {
+            let _ = state.channel.send(entry.clone());
+        });
+    }
+
+    Ok(StatusCode::ACCEPTED)
 }
 
 pub async fn get_logs(
@@ -112,7 +149,7 @@ pub async fn stream_logs(
 
 pub fn router() -> Router<SharedState> {
     Router::new()
-        .route("/log", post(ingest))
-        .route("/logs", get(get_logs))
+        .route("/logs", post(ingest_logs).get(get_logs))
         .route("/logs/stream", get(stream_logs))
+        .route("/v1/logs", post(ingest_otel_logs))
 }
