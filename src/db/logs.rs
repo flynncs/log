@@ -3,24 +3,6 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, QueryBuilder, query_as};
 use uuid::Uuid;
 
-// Single insert - keeping as a reference for `query_as`
-pub async fn insert(db: &PgPool, entry: NewLogEntry) -> Result<LogEntry, sqlx::Error> {
-    query_as!(
-        LogEntry,
-        "INSERT INTO log_entries (level, service, message, attributes, trace_id, span_id) 
-        VALUES ($1, $2, $3, $4, $5, $6) 
-        RETURNING id, timestamp, level as \"level: LogLevel\", service, message, attributes, trace_id, span_id",
-        entry.level as LogLevel,
-        entry.service,
-        entry.message,
-        entry.attributes,
-        entry.trace_id,
-        entry.span_id
-    )
-    .fetch_one(db)
-    .await
-}
-
 pub async fn insert_many(
     db: &PgPool,
     entries: Vec<NewLogEntry>,
@@ -86,8 +68,21 @@ pub async fn find_by_id(db: &PgPool, id: Uuid) -> Result<Option<LogEntry>, sqlx:
     query_as!(
         LogEntry,
         "SELECT id, timestamp, level as \"level: LogLevel\", service, message, attributes, trace_id, span_id FROM log_entries
-        WHERE $1 = id
+        WHERE id = $1
         ",
         id
     ).fetch_optional(db).await
+}
+
+pub async fn find_all_by_trace_id(
+    db: &PgPool,
+    trace_id: &String,
+) -> Result<Vec<LogEntry>, sqlx::Error> {
+    query_as!(
+        LogEntry,
+        "SELECT id, timestamp, level as \"level: LogLevel\", service, message, attributes, trace_id, span_id FROM log_entries
+        where trace_id = $1
+        ",
+        trace_id
+    ).fetch_all(db).await
 }

@@ -32,6 +32,12 @@ pub struct LogQuery {
     pub to: Option<DateTime<Utc>>,
 }
 
+#[derive(Serialize)]
+pub struct TraceEntry {
+    pub trace_id: String,
+    pub entries: Vec<LogEntry>,
+}
+
 #[derive(Deserialize)]
 pub struct LogStreamQuery {
     pub level: Option<LogLevel>,

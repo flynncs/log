@@ -11,9 +11,9 @@ use tokio_stream::wrappers::BroadcastStream;
 use uuid::Uuid;
 
 use crate::{
-    db::logs::{find_all, find_by_id, insert_many},
+    db::logs::{find_all, find_all_by_trace_id, find_by_id, insert_many},
     dto::{
-        logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery},
+        logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery, TraceEntry},
         otel::OtelLogsRequest,
     },
     errors::AppError,
@@ -116,6 +116,27 @@ pub async fn get_log(
     Ok((StatusCode::OK, Json(log)))
 }
 
+pub async fn get_logs_for_trace(
+    State(state): State<SharedState>,
+    Path(trace_id): Path<String>,
+) -> Result<(StatusCode, Json<TraceEntry>), AppError> {
+    if trace_id.trim().is_empty() {
+        return Err(AppError::ValidationError(
+            "trace_id should be present".to_string(),
+        ));
+    }
+
+    let logs = find_all_by_trace_id(&state.db, &trace_id).await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(TraceEntry {
+            trace_id,
+            entries: logs,
+        }),
+    ))
+}
+
 fn matches_filters(entry: &LogEntry, level: &Option<LogLevel>, service: &Option<String>) -> bool {
     let matches_level = match level {
         Some(l) => l == &entry.level,
@@ -162,4 +183,5 @@ pub fn router() -> Router<SharedState> {
         .route("/logs/stream", get(stream_logs))
         .route("/v1/logs", post(ingest_otel_logs))
         .route("/logs/{id}", get(get_log))
+        .route("/traces/{trace_id}", get(get_logs_for_trace))
 }
