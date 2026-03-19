@@ -1,6 +1,7 @@
 use crate::model::{LogEntry, LogLevel, NewLogEntry};
 use chrono::{DateTime, Utc};
 use sqlx::{PgPool, QueryBuilder, query_as};
+use uuid::Uuid;
 
 // Single insert - keeping as a reference for `query_as`
 pub async fn insert(db: &PgPool, entry: NewLogEntry) -> Result<LogEntry, sqlx::Error> {
@@ -79,4 +80,14 @@ pub async fn find_all(
     )
     .fetch_all(db)
     .await
+}
+
+pub async fn find_by_id(db: &PgPool, id: Uuid) -> Result<Option<LogEntry>, sqlx::Error> {
+    query_as!(
+        LogEntry,
+        "SELECT id, timestamp, level as \"level: LogLevel\", service, message, attributes, trace_id, span_id FROM log_entries
+        WHERE $1 = id
+        ",
+        id
+    ).fetch_optional(db).await
 }

@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{Sse, sse::Event},
     routing::{get, post},
@@ -8,9 +8,10 @@ use axum::{
 use chrono::Utc;
 use futures::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
+use uuid::Uuid;
 
 use crate::{
-    db::logs::{find_all, insert_many},
+    db::logs::{find_all, find_by_id, insert_many},
     dto::{
         logs::{LogIngest, LogIngestResponse, LogQuery, LogResponse, LogStreamQuery},
         otel::OtelLogsRequest,
@@ -107,6 +108,14 @@ pub async fn get_logs(
     Ok((StatusCode::OK, Json(LogResponse { logs: log_response })))
 }
 
+pub async fn get_log(
+    State(state): State<SharedState>,
+    Path(id): Path<Uuid>,
+) -> Result<(StatusCode, Json<LogEntry>), AppError> {
+    let log = find_by_id(&state.db, id).await?.ok_or(AppError::NotFound)?;
+    Ok((StatusCode::OK, Json(log)))
+}
+
 fn matches_filters(entry: &LogEntry, level: &Option<LogLevel>, service: &Option<String>) -> bool {
     let matches_level = match level {
         Some(l) => l == &entry.level,
@@ -152,4 +161,5 @@ pub fn router() -> Router<SharedState> {
         .route("/logs", post(ingest_logs).get(get_logs))
         .route("/logs/stream", get(stream_logs))
         .route("/v1/logs", post(ingest_otel_logs))
+        .route("/logs/{id}", get(get_log))
 }
